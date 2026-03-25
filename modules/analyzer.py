@@ -7,7 +7,13 @@ def analyze_topics(df):
         topic_df = df[df["topic"] == topic]
 
         total = len(topic_df)
-        solved = len(topic_df[topic_df["status"] == "Solved"])
+
+        # ✅ FIX: define solved properly
+        solved = len(
+            topic_df[
+                topic_df["status"].str.lower().str.strip().isin(["solved", "accepted"])
+            ]
+        )
 
         topic_stats[topic] = {
             "total": total,
