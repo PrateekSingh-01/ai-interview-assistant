@@ -3,7 +3,7 @@ import pandas as pd
 from modules.analyzer import analyze_topics, get_weak_topics
 from modules.recommender import recommend_topics
 import os
-
+from modules.scorer import calculate_score, get_level
 
 st.set_page_config(page_title="AI Interview Assistant", layout="wide")
 
@@ -284,3 +284,25 @@ if not topic_df.empty:
     chart_df = topic_df.set_index("Topic")["Progress (%)"]
 
     st.bar_chart(chart_df)
+
+st.divider()
+
+# -----------------------------
+# Interview Readiness Score
+# -----------------------------
+st.subheader("Interview Readiness Score")
+
+if not df.empty:
+
+    topic_stats = analyze_topics(df)
+
+    score = calculate_score(df, topic_stats)
+
+    level = get_level(score)
+
+    st.metric("Score", f"{score} / 100")
+
+    st.write(level)
+
+else:
+    st.info("Add questions to calculate readiness.")
