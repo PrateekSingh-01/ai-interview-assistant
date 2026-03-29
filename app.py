@@ -4,6 +4,7 @@ from modules.analyzer import analyze_topics, get_weak_topics
 from modules.recommender import recommend_topics
 import os
 from modules.scorer import calculate_score, get_level
+from modules.pattern_analyzer import analyze_patterns
 
 st.set_page_config(page_title="AI Interview Assistant", layout="wide")
 
@@ -306,3 +307,28 @@ if not df.empty:
 
 else:
     st.info("Add questions to calculate readiness.")
+
+st.divider()
+
+# -----------------------------
+# Pattern Intelligence
+# -----------------------------
+st.subheader("Pattern Insights")
+
+if not df.empty:
+
+    topic_stats = analyze_topics(df)
+
+    strong, weak, overfocus = analyze_patterns(topic_stats)
+
+    if strong:
+        st.success(f"Strong in: {', '.join(strong)}")
+
+    if weak:
+        st.warning(f"Weak in: {', '.join(weak)}")
+
+    if overfocus:
+        st.info(f"Over-focused on: {', '.join(overfocus)}")
+
+else:
+    st.info("Add data to analyze patterns.")
