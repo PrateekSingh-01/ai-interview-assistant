@@ -5,6 +5,8 @@ from modules.recommender import recommend_topics
 import os
 from modules.scorer import calculate_score, get_level
 from modules.pattern_analyzer import analyze_patterns
+from modules.interview import get_question
+
 
 st.set_page_config(page_title="AI Interview Assistant", layout="wide")
 
@@ -332,3 +334,99 @@ if not df.empty:
 
 else:
     st.info("Add data to analyze patterns.")
+
+# -----------------------------
+# Mock Interview Mode
+# -----------------------------
+import pandas as pd
+import random
+
+st.divider()
+st.subheader("🧠 Mock Interview Mode")
+
+
+def get_question(topic=None, difficulty=None):
+
+    try:
+        df_q = pd.read_csv("data/question_bank.csv")
+    except:
+        return None
+
+    if df_q.empty:
+        return None
+
+    # Normalize columns
+    df_q["topic"] = df_q["topic"].str.strip()
+    df_q["difficulty"] = df_q["difficulty"].str.strip()
+
+    # 🔥 Try exact match
+    filtered = df_q.copy()
+
+    if topic:
+        filtered = filtered[filtered["topic"] == topic]
+
+    if difficulty:
+        filtered = filtered[filtered["difficulty"] == difficulty]
+
+    if not filtered.empty:
+        return filtered.sample(1).iloc[0].to_dict()
+
+    # 🔥 Fallback 1 → only topic
+    if topic:
+        filtered = df_q[df_q["topic"] == topic]
+        if not filtered.empty:
+            return filtered.sample(1).iloc[0].to_dict()
+
+    # 🔥 Fallback 2 → any question
+    return df_q.sample(1).iloc[0].to_dict()
+
+
+# UI Inputs
+if not df.empty:
+
+    topics = sorted(df["topic"].dropna().unique())
+else:
+    topics = ["Array", "Linked List", "Tree", "Graph", "DP"]
+
+topic_choice = st.selectbox("Choose Topic", topics)
+difficulty_choice = st.selectbox("Choose Difficulty", ["Easy", "Medium", "Hard"])
+
+
+# Session state to persist question
+if "current_question" not in st.session_state:
+    st.session_state.current_question = None
+
+
+if st.button("🚀 Start Interview"):
+
+    q = get_question(topic_choice, difficulty_choice)
+
+    if q:
+        st.session_state.current_question = q
+    else:
+        st.warning("Question bank is empty.")
+
+
+# Display question
+if st.session_state.current_question:
+
+    q = st.session_state.current_question
+
+    st.markdown(f"### 📌 Question: {q['question']}")
+    st.write(f"**Topic:** {q['topic']} | **Difficulty:** {q['difficulty']}")
+
+    st.divider()
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("💡 Hint"):
+            st.info("Break the problem into smaller parts. Think of known patterns.")
+
+    with col2:
+        if st.button("🧠 Approach"):
+            st.success("Try identifying the pattern (e.g., sliding window, DFS, DP).")
+
+    with col3:
+        if st.button("🔄 New Question"):
+            st.session_state.current_question = get_question(topic_choice, difficulty_choice)
