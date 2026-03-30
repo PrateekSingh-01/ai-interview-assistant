@@ -1,3 +1,5 @@
+from random import random
+
 import streamlit as st
 import pandas as pd
 from modules.analyzer import analyze_topics, get_weak_topics
@@ -6,6 +8,16 @@ import os
 from modules.scorer import calculate_score, get_level
 from modules.pattern_analyzer import analyze_patterns
 from modules.interview import get_question
+import time
+
+if "start_time" not in st.session_state:
+    st.session_state.start_time = None
+
+if "interview_score" not in st.session_state:
+    st.session_state.interview_score = 0
+
+if "questions_attempted" not in st.session_state:
+    st.session_state.questions_attempted = 0
 
 
 st.set_page_config(page_title="AI Interview Assistant", layout="wide")
@@ -336,84 +348,86 @@ else:
     st.info("Add data to analyze patterns.")
 
 # -----------------------------
-# Mock Interview Mode
+# Adaptive Interview Mode + Timer (FIXED)
 # -----------------------------
-import pandas as pd
+st.divider()
+st.subheader("🧠 Adaptive Interview Mode")
+
+import time
 import random
 
-st.divider()
-st.subheader("🧠 Mock Interview Mode")
-
-
-def get_question(topic=None, difficulty=None):
-
-    try:
-        df_q = pd.read_csv("data/question_bank.csv")
-    except:
-        return None
-
-    if df_q.empty:
-        return None
-
-    # Normalize columns
-    df_q["topic"] = df_q["topic"].str.strip()
-    df_q["difficulty"] = df_q["difficulty"].str.strip()
-
-    # 🔥 Try exact match
-    filtered = df_q.copy()
-
-    if topic:
-        filtered = filtered[filtered["topic"] == topic]
-
-    if difficulty:
-        filtered = filtered[filtered["difficulty"] == difficulty]
-
-    if not filtered.empty:
-        return filtered.sample(1).iloc[0].to_dict()
-
-    # 🔥 Fallback 1 → only topic
-    if topic:
-        filtered = df_q[df_q["topic"] == topic]
-        if not filtered.empty:
-            return filtered.sample(1).iloc[0].to_dict()
-
-    # 🔥 Fallback 2 → any question
-    return df_q.sample(1).iloc[0].to_dict()
-
-
-# UI Inputs
-if not df.empty:
-
-    topics = sorted(df["topic"].dropna().unique())
-else:
-    topics = ["Array", "Linked List", "Tree", "Graph", "DP"]
-
-topic_choice = st.selectbox("Choose Topic", topics)
-difficulty_choice = st.selectbox("Choose Difficulty", ["Easy", "Medium", "Hard"])
-
-
-# Session state to persist question
+# Initialize session state
 if "current_question" not in st.session_state:
     st.session_state.current_question = None
 
+if "start_time" not in st.session_state:
+    st.session_state.start_time = None
 
+if "interview_score" not in st.session_state:
+    st.session_state.interview_score = 0
+
+if "questions_attempted" not in st.session_state:
+    st.session_state.questions_attempted = 0
+
+
+# -----------------------------
+# Get weakest topic
+# -----------------------------
+if not df.empty:
+
+    topic_stats = analyze_topics(df)
+    weak_topics = get_weak_topics(topic_stats)
+
+    if weak_topics:
+        weakest_topic = list(weak_topics.keys())[0]
+    else:
+        weakest_topic = random.choice(list(df["topic"].unique()))
+
+    st.write(f"🎯 Recommended Focus: **{weakest_topic}**")
+
+else:
+    weakest_topic = None
+
+
+# -----------------------------
+# Start Interview
+# -----------------------------
 if st.button("🚀 Start Interview"):
 
-    q = get_question(topic_choice, difficulty_choice)
+    if weakest_topic:
+        q = get_question(weakest_topic, None)
+    else:
+        q = get_question()
 
     if q:
         st.session_state.current_question = q
-    else:
-        st.warning("Question bank is empty.")
+        st.session_state.start_time = time.time()
 
 
-# Display question
+# -----------------------------
+# Display Question + Timer
+# -----------------------------
 if st.session_state.current_question:
 
     q = st.session_state.current_question
 
-    st.markdown(f"### 📌 Question: {q['question']}")
+    st.markdown(f"### 📌 {q['question']}")
     st.write(f"**Topic:** {q['topic']} | **Difficulty:** {q['difficulty']}")
+
+    # 🔥 TIMER FIX
+    if st.session_state.start_time:
+        elapsed = int(time.time() - st.session_state.start_time)
+        remaining = max(0, 120 - elapsed)
+
+        st.metric("⏱️ Time Remaining", f"{remaining} sec")
+
+        # Auto refresh every second
+        time.sleep(1)
+        st.rerun()
+
+        if remaining == 0:
+            st.warning("⏰ Time's up!")
+
 
     st.divider()
 
@@ -421,12 +435,53 @@ if st.session_state.current_question:
 
     with col1:
         if st.button("💡 Hint"):
-            st.info("Break the problem into smaller parts. Think of known patterns.")
+            st.info("Break into smaller parts. Think of patterns.")
 
     with col2:
         if st.button("🧠 Approach"):
-            st.success("Try identifying the pattern (e.g., sliding window, DFS, DP).")
+            st.success("Identify pattern (DFS / DP / Sliding Window).")
 
     with col3:
         if st.button("🔄 New Question"):
-            st.session_state.current_question = get_question(topic_choice, difficulty_choice)
+            st.session_state.current_question = get_question(weakest_topic, None)
+            st.session_state.start_time = time.time()
+            st.rerun()
+
+
+    st.divider()
+    st.subheader("Your Answer")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("✅ Solved"):
+            st.session_state.interview_score += 10
+            st.session_state.questions_attempted += 1
+            st.success("Great job!")
+
+            st.session_state.current_question = None
+            st.session_state.start_time = None
+
+    with col2:
+        if st.button("❌ Not Solved"):
+            st.session_state.questions_attempted += 1
+            st.error("Keep practicing!")
+
+            st.session_state.current_question = None
+            st.session_state.start_time = None
+
+
+# -----------------------------
+# Scoreboard
+# -----------------------------
+st.divider()
+st.subheader("📊 Interview Performance")
+
+attempted = st.session_state.questions_attempted
+score = st.session_state.interview_score
+
+accuracy = round((score / (attempted * 10)) * 100, 2) if attempted > 0 else 0
+
+st.write(f"Questions Attempted: {attempted}")
+st.write(f"Score: {score}")
+st.write(f"Accuracy: {accuracy}%")
